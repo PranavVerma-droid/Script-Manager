@@ -1,0 +1,16 @@
+[Unit]
+Description=YouTube Downloader Web App
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/var/www/downloader-v2
+ExecStart=/var/www/downloader-v2/venv/bin/python /var/www/downloader-v2/app.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment="FLASK_ENV=production"
+
+[Install]
+WantedBy=multi-user.target
