@@ -3,14 +3,18 @@ import os
 import re
 import subprocess
 import time
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'downloader_secret_key'
+app.secret_key = os.getenv('SECRET_KEY', 'downloader_secret_key')
 
-VIDEOS_ENV_PATH = '/scripts/.videos-env'
-SONGS_ENV_PATH = '/scripts/.songs-env'
-VIDEOS_SCRIPT_PATH = '/scripts/videos-download.sh'
-SONGS_SCRIPT_PATH = '/scripts/songs-download.sh'
+VIDEOS_ENV_PATH = os.getenv('VIDEOS_ENV_PATH', '/data/scripts/.videos-env')
+SONGS_ENV_PATH = os.getenv('SONGS_ENV_PATH', '/data/scripts/.songs-env')
+VIDEOS_SCRIPT_PATH = os.getenv('VIDEOS_SCRIPT_PATH', '/data/scripts/videos-download.sh')
+SONGS_SCRIPT_PATH = os.getenv('SONGS_SCRIPT_PATH', '/data/scripts/songs-download.sh')
 
 def read_array_from_env(file_path, array_name):
     """Read array from env file"""
