@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 User=root
-WorkingDirectory=/var/www/downloader-v2
-ExecStart=/var/www/downloader-v2/venv/bin/python /var/www/downloader-v2/app.py
+WorkingDirectory=/var/www/script-manager
+ExecStart=/var/www/script-manager/venv/bin/python /var/www/script-manager/app.py
 Restart=always
 RestartSec=10
 StandardOutput=journal

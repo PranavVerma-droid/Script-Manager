@@ -56,6 +56,27 @@
             font-size: 0.7rem;
         }
         
+        .hidden-badge {
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+        }
+        
+        .file-item {
+            transition: opacity 0.3s ease;
+        }
+        
+        .file-item.hidden {
+            display: none !important;
+        }
+        
+        .file-item.hidden.show-hidden {
+            display: flex !important;
+            opacity: 0.7;
+        }
+        
         .btn-group .btn {
             padding: 0.25rem 0.5rem;
             font-size: 0.8rem;
@@ -79,6 +100,24 @@
             .card-header h3 {
                 font-size: 1.25rem;
             }
+            
+            .card-header .d-flex {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .card-header .d-flex > div {
+                width: 100%;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-top: 0.5rem;
+            }
+            
+            .card-header .btn {
+                flex: 1;
+                min-width: 0;
+            }
         }
     </style>
 </head>
@@ -96,6 +135,9 @@
                             <a href="{{ url_for('tmux_manager') }}" class="btn btn-sm btn-info">
                                 <i class="bi bi-terminal"></i> Tmux Sessions
                             </a>
+                            <button id="toggleHidden" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-eye-slash"></i> <span id="toggleText">Show Hidden</span>
+                            </button>
                             <a href="{{ url_for('index') }}" class="btn btn-sm btn-light">Back to Home</a>
                         </div>
                     </div>
@@ -111,7 +153,7 @@
                         {% if files %}
                             <div class="list-group">
                                 {% for file in files %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-start">
+                                    <div class="list-group-item d-flex justify-content-between align-items-start file-item" data-filename="{{ file.name }}">
                                         <div class="flex-grow-1">
                                             <div class="d-flex align-items-center mb-1">
                                                 {% if file.is_executable %}
@@ -132,6 +174,7 @@
                                                 {% if file.is_executable %}
                                                     <span class="executable-badge ms-2">EXECUTABLE</span>
                                                 {% endif %}
+                                                <span class="hidden-badge ms-2" style="display: none;">HIDDEN</span>
                                             </div>
                                             <div class="d-flex gap-3">
                                                 <span class="file-size">{{ "%.1f KB"|format(file.size / 1024) }}</span>
@@ -149,6 +192,10 @@
                                                     <i class="bi bi-play-fill"></i>
                                                 </button>
                                             {% endif %}
+                                            <button class="btn btn-outline-secondary hide-file" 
+                                                    data-filename="{{ file.name }}" title="Hide File">
+                                                <i class="bi bi-eye-slash"></i>
+                                            </button>
                                             <button class="btn btn-outline-danger delete-script" 
                                                     data-filename="{{ file.name }}" title="Delete">
                                                 <i class="bi bi-trash"></i>
@@ -175,6 +222,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Hidden files management
+        const HIDDEN_FILES_KEY = 'hiddenFiles';
+        let hiddenFiles = JSON.parse(localStorage.getItem(HIDDEN_FILES_KEY) || '[]');
+        let showHidden = false;
+        
         // Function to show toast notifications
         function showToast(message, type = 'success') {
             const alertDiv = document.createElement('div');
@@ -193,6 +245,149 @@
                 }
             }, 5000);
         }
+        
+        // Function to save hidden files to localStorage
+        function saveHiddenFiles() {
+            localStorage.setItem(HIDDEN_FILES_KEY, JSON.stringify(hiddenFiles));
+        }
+        
+        // Function to update file visibility
+        function updateFileVisibility() {
+            let visibleCount = 0;
+            let hiddenCount = 0;
+            
+            document.querySelectorAll('.file-item').forEach(item => {
+                const filename = item.dataset.filename;
+                const isHidden = hiddenFiles.includes(filename);
+                const hiddenBadge = item.querySelector('.hidden-badge');
+                const hideButton = item.querySelector('.hide-file');
+                
+                if (isHidden) {
+                    hiddenCount++;
+                    item.classList.add('hidden');
+                    item.style.display = showHidden ? 'flex' : 'none';
+                    hiddenBadge.style.display = 'inline';
+                    hideButton.innerHTML = '<i class="bi bi-eye"></i>';
+                    hideButton.title = 'Unhide File';
+                    hideButton.classList.remove('btn-outline-secondary');
+                    hideButton.classList.add('btn-outline-warning');
+                    
+                    if (showHidden) {
+                        item.classList.add('show-hidden');
+                        item.style.opacity = '0.7';
+                        visibleCount++;
+                    } else {
+                        item.classList.remove('show-hidden');
+                        item.style.opacity = '1';
+                    }
+                } else {
+                    visibleCount++;
+                    item.classList.remove('hidden', 'show-hidden');
+                    item.style.display = 'flex';
+                    item.style.opacity = '1';
+                    hiddenBadge.style.display = 'none';
+                    hideButton.innerHTML = '<i class="bi bi-eye-slash"></i>';
+                    hideButton.title = 'Hide File';
+                    hideButton.classList.remove('btn-outline-warning');
+                    hideButton.classList.add('btn-outline-secondary');
+                }
+            });
+            
+            // Update the toggle button
+            const toggleBtn = document.getElementById('toggleHidden');
+            
+            if (showHidden) {
+                toggleBtn.innerHTML = '<i class="bi bi-eye"></i> <span id="toggleText">Hide Hidden</span>';
+                toggleBtn.classList.remove('btn-outline-secondary');
+                toggleBtn.classList.add('btn-outline-warning');
+            } else {
+                toggleBtn.innerHTML = `<i class="bi bi-eye-slash"></i> <span id="toggleText">Show Hidden ${hiddenCount > 0 ? `(${hiddenCount})` : ''}</span>`;
+                toggleBtn.classList.remove('btn-outline-warning');
+                toggleBtn.classList.add('btn-outline-secondary');
+            }
+            
+            // Show message if no files are visible
+            updateEmptyState(visibleCount);
+        }
+        
+        // Function to show/hide empty state message
+        function updateEmptyState(visibleCount) {
+            let emptyStateDiv = document.getElementById('emptyState');
+            const fileList = document.querySelector('.list-group');
+            
+            if (visibleCount === 0) {
+                if (!emptyStateDiv) {
+                    emptyStateDiv = document.createElement('div');
+                    emptyStateDiv.id = 'emptyState';
+                    emptyStateDiv.className = 'text-center py-5';
+                    fileList.parentNode.appendChild(emptyStateDiv);
+                }
+                
+                if (hiddenFiles.length > 0 && !showHidden) {
+                    emptyStateDiv.innerHTML = `
+                        <i class="bi bi-eye-slash" style="font-size: 3rem; color: #666;"></i>
+                        <h4 class="mt-3 text-muted">All files are hidden</h4>
+                        <p class="text-muted">Click "Show Hidden" to view ${hiddenFiles.length} hidden file${hiddenFiles.length !== 1 ? 's' : ''}.</p>
+                        <button class="btn btn-outline-warning" onclick="toggleShowHidden()">
+                            <i class="bi bi-eye"></i> Show Hidden Files
+                        </button>
+                    `;
+                } else {
+                    emptyStateDiv.innerHTML = `
+                        <i class="bi bi-folder2-open" style="font-size: 3rem; color: #666;"></i>
+                        <h4 class="mt-3 text-muted">No scripts found</h4>
+                        <p class="text-muted">Create your first script to get started.</p>
+                        <a href="{{ url_for('create_script') }}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Create New Script
+                        </a>
+                    `;
+                }
+                
+                fileList.style.display = 'none';
+                emptyStateDiv.style.display = 'block';
+            } else {
+                if (emptyStateDiv) {
+                    emptyStateDiv.style.display = 'none';
+                }
+                fileList.style.display = 'block';
+            }
+        }
+        
+        // Function to toggle file hidden status
+        function toggleFileHidden(filename) {
+            const index = hiddenFiles.indexOf(filename);
+            if (index > -1) {
+                hiddenFiles.splice(index, 1);
+                showToast(`File "${filename}" is now visible`, 'success');
+            } else {
+                hiddenFiles.push(filename);
+                showToast(`File "${filename}" is now hidden`, 'info');
+            }
+            saveHiddenFiles();
+            updateFileVisibility();
+        }
+        
+        // Function to toggle showing hidden files
+        window.toggleShowHidden = function() {
+            showHidden = !showHidden;
+            updateFileVisibility();
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateFileVisibility();
+            
+            // Add event listeners for hide/unhide buttons
+            document.querySelectorAll('.hide-file').forEach(button => {
+                button.addEventListener('click', function() {
+                    const filename = this.dataset.filename;
+                    toggleFileHidden(filename);
+                });
+            });
+            
+            // Add event listener for toggle hidden button
+            document.getElementById('toggleHidden').addEventListener('click', window.toggleShowHidden);
+        });
         
         // Handle script execution
         document.querySelectorAll('.run-script').forEach(button => {
