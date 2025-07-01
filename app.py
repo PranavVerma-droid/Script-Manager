@@ -1,58 +1,88 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, abort
 import os
 import re
 import subprocess
 import time
+from datetime import datetime
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'downloader_secret_key')
+app.secret_key = os.getenv('SECRET_KEY', 'script_manager_secret_key')
 
-VIDEOS_ENV_PATH = os.getenv('VIDEOS_ENV_PATH', '/data/scripts/.videos-env')
-SONGS_ENV_PATH = os.getenv('SONGS_ENV_PATH', '/data/scripts/.songs-env')
-VIDEOS_SCRIPT_PATH = os.getenv('VIDEOS_SCRIPT_PATH', '/data/scripts/videos-download.sh')
-SONGS_SCRIPT_PATH = os.getenv('SONGS_SCRIPT_PATH', '/data/scripts/songs-download.sh')
+SCRIPT_DIR = os.getenv('SCRIPT_DIR', '/data/scripts')
 
-def read_array_from_env(file_path, array_name):
-    """Read array from env file"""
+# Custom Jinja2 filter for datetime formatting
+@app.template_filter('datetime')
+def datetime_filter(timestamp, format='%Y-%m-%d %H:%M'):
+    """Convert timestamp to formatted datetime string"""
+    return datetime.fromtimestamp(timestamp).strftime(format)
+
+def get_all_files():
+    """Get all files from the script directory"""
     try:
-        with open(file_path, 'r') as file:
-            content = file.read()
-            pattern = rf'{array_name}=\(\n(.*?)\n\)'
-            match = re.search(pattern, content, re.DOTALL)
-            if match:
-                lines = match.group(1).strip().split('\n')
-                # Remove quotes and other characters
-                urls = [line.strip().strip('"') for line in lines if line.strip() and not line.strip().startswith('#')]
-                return urls
+        if not os.path.exists(SCRIPT_DIR):
+            os.makedirs(SCRIPT_DIR, exist_ok=True)
             return []
-    except FileNotFoundError:
+        
+        files = []
+        for item in os.listdir(SCRIPT_DIR):
+            item_path = os.path.join(SCRIPT_DIR, item)
+            if os.path.isfile(item_path):
+                file_info = {
+                    'name': item,
+                    'path': item_path,
+                    'size': os.path.getsize(item_path),
+                    'modified': os.path.getmtime(item_path),
+                    'is_executable': item.endswith('.sh'),
+                    'extension': os.path.splitext(item)[1].lower()
+                }
+                files.append(file_info)
+        
+        # Sort files by name
+        files.sort(key=lambda x: x['name'].lower())
+        return files
+    except Exception as e:
+        print(f"Error getting files: {e}")
         return []
 
-def write_array_to_env(file_path, array_name, urls):
-    """Write array to env file"""
+def read_file_content(file_path):
+    """Read content of a file"""
     try:
-        with open(file_path, 'r') as file:
-            content = file.read()
-        
-        # Prepare the new array content
-        new_array_content = f'{array_name}=(\n'
-        for url in urls:
-            new_array_content += f'"{url}"\n'
-        new_array_content += ')'
-        
-        # Replace the existing array with new content
-        pattern = rf'{array_name}=\(\n.*?\n\)'
-        new_content = re.sub(pattern, new_array_content, content, flags=re.DOTALL)
-        
-        with open(file_path, 'w') as file:
-            file.write(new_content)
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read()
+    except UnicodeDecodeError:
+        # If UTF-8 fails, try with latin-1
+        try:
+            with open(file_path, 'r', encoding='latin-1') as file:
+                return file.read()
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+    except Exception as e:
+        return f"Error reading file: {str(e)}"
+
+def write_file_content(file_path, content):
+    """Write content to a file"""
+    try:
+        with open(file_path, 'w', encoding='utf-8') as file:
+            file.write(content)
         return True
     except Exception as e:
-        print(f"Error writing to file: {e}")
+        print(f"Error writing file: {e}")
+        return False
+
+def delete_file(file_path):
+    """Delete a file"""
+    try:
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            os.remove(file_path)
+            return True
+        return False
+    except Exception as e:
+        print(f"Error deleting file: {e}")
         return False
 
 def execute_script(script_path):
@@ -134,47 +164,104 @@ def get_tmux_session_output(session_name, window=0, pane=0):
 def index():
     return render_template('index.html')
 
-@app.route('/videos', methods=['GET', 'POST'])
-def videos():
-    if request.method == 'POST':
-        if 'save' in request.form:
-            urls = request.form.get('urls', '').split('\n')
-            urls = [url.strip() for url in urls if url.strip()]
-            if write_array_to_env(VIDEOS_ENV_PATH, 'declare -a VIDEO_SOURCES', urls):
-                flash('Video sources updated successfully', 'success')
-            else:
-                flash('Error updating video sources', 'danger')
-        elif 'execute' in request.form:
-            success, message = execute_script(VIDEOS_SCRIPT_PATH)
-            if success:
-                flash(message, 'success')
-            else:
-                flash(message, 'danger')
-        return redirect(url_for('videos'))
-    
-    video_urls = read_array_from_env(VIDEOS_ENV_PATH, 'declare -a VIDEO_SOURCES')
-    return render_template('videos.html', urls=video_urls)
+@app.route('/scripts')
+def scripts():
+    """Main scripts management page"""
+    files = get_all_files()
+    return render_template('scripts.html', files=files)
 
-@app.route('/songs', methods=['GET', 'POST'])
-def songs():
-    if request.method == 'POST':
-        if 'save' in request.form:
-            urls = request.form.get('urls', '').split('\n')
-            urls = [url.strip() for url in urls if url.strip()]
-            if write_array_to_env(SONGS_ENV_PATH, 'declare -a PLAYLISTS', urls):
-                flash('Playlist sources updated successfully', 'success')
-            else:
-                flash('Error updating playlist sources', 'danger')
-        elif 'execute' in request.form:
-            success, message = execute_script(SONGS_SCRIPT_PATH)
-            if success:
-                flash(message, 'success')
-            else:
-                flash(message, 'danger')
-        return redirect(url_for('songs'))
+@app.route('/script/edit/<filename>')
+def edit_script(filename):
+    """Edit a specific script file"""
+    file_path = os.path.join(SCRIPT_DIR, filename)
+    if not os.path.exists(file_path) or not os.path.isfile(file_path):
+        abort(404)
     
-    song_urls = read_array_from_env(SONGS_ENV_PATH, 'declare -a PLAYLISTS')
-    return render_template('songs.html', urls=song_urls)
+    content = read_file_content(file_path)
+    file_info = {
+        'name': filename,
+        'path': file_path,
+        'size': os.path.getsize(file_path),
+        'modified': os.path.getmtime(file_path),
+        'is_executable': filename.endswith('.sh'),
+        'extension': os.path.splitext(filename)[1].lower()
+    }
+    return render_template('edit_script.html', file=file_info, content=content)
+
+@app.route('/script/save/<filename>', methods=['POST'])
+def save_script(filename):
+    """Save changes to a script file"""
+    file_path = os.path.join(SCRIPT_DIR, filename)
+    content = request.form.get('content', '')
+    
+    if write_file_content(file_path, content):
+        flash(f'File "{filename}" saved successfully', 'success')
+    else:
+        flash(f'Error saving file "{filename}"', 'danger')
+    
+    return redirect(url_for('edit_script', filename=filename))
+
+@app.route('/script/run/<filename>')
+def run_script(filename):
+    """Execute a shell script"""
+    if not filename.endswith('.sh'):
+        return jsonify({"status": "error", "message": "Only .sh files can be executed"})
+    
+    file_path = os.path.join(SCRIPT_DIR, filename)
+    if not os.path.exists(file_path):
+        return jsonify({"status": "error", "message": "Script not found"})
+    
+    success, message = execute_script(file_path)
+    if success:
+        return jsonify({"status": "success", "message": message})
+    else:
+        return jsonify({"status": "error", "message": message})
+
+@app.route('/script/create', methods=['GET', 'POST'])
+def create_script():
+    """Create a new script file"""
+    if request.method == 'POST':
+        filename = request.form.get('filename', '').strip()
+        content = request.form.get('content', '')
+        
+        if not filename:
+            flash('Filename is required', 'danger')
+            return redirect(url_for('create_script'))
+        
+        # Validate filename
+        if '/' in filename or '\\' in filename or '..' in filename:
+            flash('Invalid filename', 'danger')
+            return redirect(url_for('create_script'))
+        
+        file_path = os.path.join(SCRIPT_DIR, filename)
+        if os.path.exists(file_path):
+            flash('File already exists', 'danger')
+            return redirect(url_for('create_script'))
+        
+        if write_file_content(file_path, content):
+            # Make .sh files executable
+            if filename.endswith('.sh'):
+                os.chmod(file_path, 0o755)
+            flash(f'File "{filename}" created successfully', 'success')
+            return redirect(url_for('edit_script', filename=filename))
+        else:
+            flash(f'Error creating file "{filename}"', 'danger')
+    
+    return render_template('create_script.html')
+
+@app.route('/tmux')
+def tmux_manager():
+    """Tmux sessions management page"""
+    return render_template('tmux.html')
+
+@app.route('/script/delete/<filename>')
+def delete_script(filename):
+    """Delete a script file"""
+    file_path = os.path.join(SCRIPT_DIR, filename)
+    if delete_file(file_path):
+        return jsonify({"status": "success", "message": f"File {filename} deleted"})
+    else:
+        return jsonify({"status": "error", "message": f"Failed to delete file {filename}"})
 
 @app.route('/tmux/sessions')
 def tmux_sessions():

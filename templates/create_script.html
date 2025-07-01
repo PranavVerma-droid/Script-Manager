@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create New Script</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        
+        .card {
+            background-color: #1e1e1e;
+            border-color: #333;
+        }
+        
+        .form-control {
+            background-color: #2a2a2a;
+            border-color: #444;
+            color: #e0e0e0;
+        }
+        
+        .form-control:focus {
+            background-color: #2a2a2a;
+            color: #fff;
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        
+        .form-text {
+            color: #aaa;
+        }
+        
+        #content {
+            min-height: 400px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .template-buttons .btn {
+            margin: 0.25rem;
+        }
+        
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            #content {
+                min-height: 300px;
+                font-size: 13px;
+            }
+            
+            .card-header h3 {
+                font-size: 1.25rem;
+            }
+            
+            .template-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .template-buttons .btn {
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-3 mt-md-4">
+        <div class="row justify-content-center">
+            <div class="col-12 col-xl-10">
+                <div class="card">
+                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-2">
+                        <h3 class="mb-0">
+                            <i class="bi bi-plus-circle"></i> Create New Script
+                        </h3>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('scripts') }}" class="btn btn-sm btn-light">
+                                <i class="bi bi-arrow-left"></i> Back to Scripts
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }}">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <form method="post" id="createForm">
+                            <div class="mb-3">
+                                <label for="filename" class="form-label">Filename *</label>
+                                <input type="text" class="form-control" id="filename" name="filename" required 
+                                       placeholder="e.g., script.sh, config.txt, program.py">
+                                <div class="form-text">
+                                    Files ending with .sh will be made executable automatically
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="content" class="form-label">Content</label>
+                                <div class="mb-2">
+                                    <small class="text-muted">Quick templates:</small>
+                                    <div class="template-buttons">
+                                        <button type="button" class="btn btn-sm btn-outline-info" onclick="insertTemplate('bash')">
+                                            Bash Script
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" onclick="insertTemplate('python')">
+                                            Python Script
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="insertTemplate('config')">
+                                            Config File
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="insertTemplate('clear')">
+                                            Clear
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea class="form-control" id="content" name="content" rows="20" 
+                                          placeholder="Enter your script content here..."></textarea>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between">
+                                <a href="{{ url_for('scripts') }}" class="btn btn-secondary">Cancel</a>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-plus-circle"></i> Create Script
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const templates = {
+            bash: `#!/bin/bash
+
+# Script Name: 
+# Description: 
+# Author: 
+# Date: ${new Date().toISOString().split('T')[0]}
+
+set -e  # Exit on any error
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+LOG_FILE="\${SCRIPT_DIR}/script.log"
+
+# Functions
+log() {
+    echo "[\$(date '+%Y-%m-%d %H:%M:%S')] \$1" | tee -a "\$LOG_FILE"
+}
+
+main() {
+    log "Script started"
+    
+    # Your code here
+    
+    log "Script completed successfully"
+}
+
+# Run main function
+main "\$@"
+`,
+            python: `#!/usr/bin/env python3
+"""
+Script Name: 
+Description: 
+Author: 
+Date: ${new Date().toISOString().split('T')[0]}
+"""
+
+import os
+import sys
+import logging
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('script.log'),
+        logging.StreamHandler()
+    ]
+)
+
+def main():
+    """Main function"""
+    logging.info("Script started")
+    
+    try:
+        # Your code here
+        pass
+        
+        logging.info("Script completed successfully")
+    except Exception as e:
+        logging.error(f"Script failed: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+`,
+            config: `# Configuration File
+# Created: ${new Date().toISOString().split('T')[0]}
+
+# General Settings
+DEBUG=false
+LOG_LEVEL=info
+
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=myapp
+DB_USER=user
+DB_PASSWORD=password
+
+# Application Settings
+APP_NAME=MyApplication
+APP_VERSION=1.0.0
+APP_PORT=8080
+
+# Security
+SECRET_KEY=your-secret-key-here
+JWT_EXPIRY=3600
+`
+        };
+
+        function insertTemplate(type) {
+            const contentTextarea = document.getElementById('content');
+            const filenameInput = document.getElementById('filename');
+            
+            if (type === 'clear') {
+                contentTextarea.value = '';
+                return;
+            }
+            
+            if (templates[type]) {
+                contentTextarea.value = templates[type];
+                
+                // Auto-suggest filename based on template
+                if (type === 'bash' && !filenameInput.value) {
+                    filenameInput.value = 'script.sh';
+                } else if (type === 'python' && !filenameInput.value) {
+                    filenameInput.value = 'script.py';
+                } else if (type === 'config' && !filenameInput.value) {
+                    filenameInput.value = 'config.txt';
+                }
+                
+                // Focus on filename if empty, otherwise on content
+                if (!filenameInput.value) {
+                    filenameInput.focus();
+                } else {
+                    contentTextarea.focus();
+                }
+            }
+        }
+
+        // Auto-suggest file extension based on content
+        document.getElementById('content').addEventListener('input', function() {
+            const content = this.value.trim();
+            const filenameInput = document.getElementById('filename');
+            
+            if (!filenameInput.value && content) {
+                if (content.startsWith('#!/bin/bash') || content.startsWith('#!/usr/bin/bash')) {
+                    filenameInput.placeholder = 'e.g., script.sh';
+                } else if (content.startsWith('#!/usr/bin/env python') || content.startsWith('#!/usr/bin/python')) {
+                    filenameInput.placeholder = 'e.g., script.py';
+                } else if (content.startsWith('#!/usr/bin/env node') || content.startsWith('#!/usr/bin/node')) {
+                    filenameInput.placeholder = 'e.g., script.js';
+                }
+            }
+        });
+
+        // Validate filename on input
+        document.getElementById('filename').addEventListener('input', function() {
+            const filename = this.value;
+            const invalidChars = /[\/\\:*?"<>|]/;
+            
+            if (invalidChars.test(filename)) {
+                this.setCustomValidity('Filename contains invalid characters');
+                this.classList.add('is-invalid');
+            } else if (filename.includes('..')) {
+                this.setCustomValidity('Filename cannot contain ".."');
+                this.classList.add('is-invalid');
+            } else {
+                this.setCustomValidity('');
+                this.classList.remove('is-invalid');
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('createForm').addEventListener('submit', function(e) {
+            const filenameInput = document.getElementById('filename');
+            const filename = filenameInput.value.trim();
+            
+            if (!filename) {
+                e.preventDefault();
+                filenameInput.focus();
+                return false;
+            }
+        });
+
+        // Focus on filename input when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('filename').focus();
+        });
+    </script>
+</body>
+</html>

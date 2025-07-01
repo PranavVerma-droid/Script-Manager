@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Script - {{ file.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        
+        .card {
+            background-color: #1e1e1e;
+            border-color: #333;
+        }
+        
+        .form-control {
+            background-color: #2a2a2a;
+            border-color: #444;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .form-control:focus {
+            background-color: #2a2a2a;
+            color: #fff;
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        
+        #content {
+            min-height: 500px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .file-info {
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        
+        .file-info .badge {
+            font-size: 0.7rem;
+        }
+        
+        .btn-toolbar {
+            gap: 0.5rem;
+        }
+        
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            #content {
+                min-height: 400px;
+                font-size: 13px;
+            }
+            
+            .card-header h3 {
+                font-size: 1.25rem;
+            }
+            
+            .btn-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .btn-toolbar .btn-group {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+            
+            .btn-toolbar .btn-group .btn {
+                flex: 1;
+            }
+        }
+        
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-3 mt-md-4">
+        <div class="row justify-content-center">
+            <div class="col-12 col-xl-10">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2 py-2">
+                        <h3 class="mb-0">
+                            <i class="bi bi-file-code"></i> Edit Script
+                        </h3>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('scripts') }}" class="btn btn-sm btn-light">
+                                <i class="bi bi-arrow-left"></i> Back to Scripts
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else category }}">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <!-- File Information -->
+                        <div class="file-info">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Filename:</strong> 
+                                    <code>{{ file.name }}</code>
+                                    {% if file.is_executable %}
+                                        <span class="badge bg-success ms-2">EXECUTABLE</span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Size:</strong> {{ "%.1f KB"|format(file.size / 1024) }}
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Type:</strong> {{ file.extension or 'No extension' }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Editor Form -->
+                        <form method="post" action="{{ url_for('save_script', filename=file.name) }}" id="editorForm">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label for="content" class="form-label">Content</label>
+                                    <div class="btn-toolbar">
+                                        <div class="btn-group">
+                                            <button type="submit" class="btn btn-success" id="saveBtn">
+                                                <i class="bi bi-save"></i> Save
+                                            </button>
+                                            {% if file.is_executable %}
+                                                <button type="button" class="btn btn-warning" id="runBtn" data-filename="{{ file.name }}">
+                                                    <i class="bi bi-play-fill"></i> Run
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <textarea class="form-control" id="content" name="content" rows="25">{{ content }}</textarea>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="form-text">
+                                    <i class="bi bi-info-circle"></i> 
+                                    Use Ctrl+S (Cmd+S on Mac) to save quickly
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <a href="{{ url_for('scripts') }}" class="btn btn-secondary">Cancel</a>
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="bi bi-save"></i> Save Changes
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Function to show toast notifications
+        function showToast(message, type = 'success') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1050; max-width: 300px;';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+        
+        // Handle keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+S or Cmd+S to save
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                document.getElementById('editorForm').submit();
+            }
+        });
+        
+        // Handle script execution
+        const runBtn = document.getElementById('runBtn');
+        if (runBtn) {
+            runBtn.addEventListener('click', function() {
+                const filename = this.dataset.filename;
+                const originalHtml = this.innerHTML;
+                
+                // Show loading state
+                this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Running...';
+                this.disabled = true;
+                
+                fetch(`/script/run/${filename}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showToast(`Script "${filename}" executed successfully`, 'success');
+                        } else {
+                            showToast(`Error running "${filename}": ${data.message}`, 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showToast(`Error running script "${filename}"`, 'danger');
+                    })
+                    .finally(() => {
+                        // Restore button state
+                        this.innerHTML = originalHtml;
+                        this.disabled = false;
+                    });
+            });
+        }
+        
+        // Auto-resize textarea based on content
+        const textarea = document.getElementById('content');
+        function adjustTextareaHeight() {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.max(500, textarea.scrollHeight) + 'px';
+        }
+        
+        // Add line numbers (simple implementation)
+        let lineNumbers = '';
+        const lines = textarea.value.split('\n');
+        for (let i = 1; i <= lines.length; i++) {
+            lineNumbers += i + '\n';
+        }
+        
+        // Track unsaved changes
+        let originalContent = textarea.value;
+        let hasUnsavedChanges = false;
+        
+        textarea.addEventListener('input', function() {
+            hasUnsavedChanges = (this.value !== originalContent);
+            updateSaveButton();
+        });
+        
+        function updateSaveButton() {
+            const saveBtn = document.getElementById('saveBtn');
+            if (hasUnsavedChanges) {
+                saveBtn.innerHTML = '<i class="bi bi-save"></i> Save *';
+                saveBtn.classList.add('btn-warning');
+                saveBtn.classList.remove('btn-success');
+            } else {
+                saveBtn.innerHTML = '<i class="bi bi-save"></i> Save';
+                saveBtn.classList.add('btn-success');
+                saveBtn.classList.remove('btn-warning');
+            }
+        }
+        
+        // Warn about unsaved changes
+        window.addEventListener('beforeunload', function(e) {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+        
+        // Mark as saved when form is submitted
+        document.getElementById('editorForm').addEventListener('submit', function() {
+            hasUnsavedChanges = false;
+        });
+    </script>
+</body>
+</html>
