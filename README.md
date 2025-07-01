@@ -24,7 +24,16 @@ I have personally made this to manage all my [Server Scripts for Server 1](https
 - **Kill tmux sessions** remotely
 - **Auto-refresh** session list
 
-### 📱 Mobile-Friendly
+### � Git Version Control
+- **Source control sidebar** (like VS Code) for managing Git repositories
+- **Stage/unstage files** with visual status indicators
+- **Commit changes** with custom commit messages
+- **Push/pull** changes to/from remote repositories
+- **Discard changes** for individual files or all changes
+- **View git branch** and modified files count
+- **Auto-detection** of Git repositories in script directory
+
+### �📱 Mobile-Friendly
 - **Responsive design** that works on desktop and mobile
 - **Touch-friendly** buttons and interface
 - **Optimized layouts** for different screen sizes
@@ -74,6 +83,9 @@ SECRET_KEY=your-secret-key-here
 
 # Directory where scripts are stored
 SCRIPT_DIR=/data/scripts
+
+# Enable/disable Git version control features
+GIT_ENABLED=true
 ```
 
 ### Environment Variables
@@ -82,6 +94,7 @@ SCRIPT_DIR=/data/scripts
 |----------|---------|-------------|
 | `SECRET_KEY` | `script_manager_secret_key` | Flask secret key for sessions |
 | `SCRIPT_DIR` | `/data/scripts` | Directory containing your scripts |
+| `GIT_ENABLED` | `false` | Enable Git version control features |
 
 ## Usage
 
@@ -158,6 +171,16 @@ The service will automatically:
 - **Kill Sessions**: Use the X button to terminate sessions
 - Sessions auto-refresh every 30 seconds
 
+#### 4. Git Version Control (When Enabled)
+- **Source Control Sidebar**: Always visible on desktop, toggle on mobile
+- **Stage Changes**: Click the `+` button next to modified files to stage them
+- **Unstage Changes**: Click the `-` button next to staged files to unstage them
+- **Discard Changes**: Click the `×` button to discard individual file changes
+- **Commit**: Enter a commit message and click "Commit" to save staged changes
+- **Push/Pull**: Use the Push/Pull buttons to sync with remote repository
+- **Discard All**: Reset all changes to the last commit state
+- **Auto-refresh**: Git status updates automatically when files change
+
 ## File Templates
 
 The application includes built-in templates for quick file creation:
@@ -196,6 +219,7 @@ The application includes built-in templates for quick file creation:
 
 The application provides REST API endpoints:
 
+### File Management
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/scripts` | GET | View all scripts |
@@ -204,10 +228,55 @@ The application provides REST API endpoints:
 | `/script/save/<filename>` | POST | Save script |
 | `/script/run/<filename>` | GET | Execute script |
 | `/script/delete/<filename>` | GET | Delete script |
+
+### Tmux Management
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/tmux/sessions` | GET | List tmux sessions |
 | `/tmux/kill/<session>` | GET | Kill tmux session |
 | `/tmux/output/<session>` | GET | Get session output |
 | `/tmux/stream/<session>` | GET | Stream session output |
+
+### Git Version Control
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/git/status` | GET | Get git repository status |
+| `/git/stage/<filename>` | POST | Stage a file for commit |
+| `/git/unstage/<filename>` | POST | Unstage a file |
+| `/git/discard/<path:filename>` | POST | Discard changes to a file |
+| `/git/discard-all` | POST | Discard all changes |
+| `/git/commit` | POST | Commit staged changes |
+| `/git/push` | POST | Push changes to remote |
+| `/git/pull` | POST | Pull changes from remote |
+
+### Statistics API
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/stats` | GET | Get script statistics (for homepage widgets) |
+
+#### Stats API Response
+The `/api/stats` endpoint returns JSON data suitable for homepage dashboard widgets:
+
+```json
+{
+    "total_scripts": 25,
+    "executable_scripts": 18,
+    "shell_scripts": 15,
+    "python_scripts": 8,
+    "config_files": 2,
+    "total_size_bytes": 45678,
+    "git": {
+        "enabled": true,
+        "branch": "main",
+        "modified_files": 3
+    },
+    "recent_file": {
+        "name": "backup-script.sh",
+        "modified": 1703894400
+    },
+    "status": "online",
+    "last_updated": 1703894400
+}
 
 ## File Structure
 

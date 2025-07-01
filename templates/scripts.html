@@ -82,6 +82,141 @@
             font-size: 0.8rem;
         }
         
+        /* Source Control Sidebar Styles */
+        .source-control-sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100vh;
+            background-color: #1e1e1e;
+            border-left: 1px solid #333;
+            z-index: 1040;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+        }
+        
+        /* Desktop: always show sidebar */
+        @media (min-width: 992px) {
+            .source-control-sidebar {
+                transform: translateX(0);
+                position: fixed;
+            }
+            
+            .main-content {
+                margin-right: 400px;
+            }
+            
+            .source-control-toggle {
+                display: none;
+            }
+        }
+        
+        /* Mobile: hide by default, show with toggle */
+        @media (max-width: 991px) {
+            .source-control-sidebar {
+                transform: translateX(100%);
+            }
+            
+            .source-control-sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .source-control-sidebar {
+                width: 100%;
+                max-width: 400px;
+            }
+        }
+        
+        .source-control-header {
+            padding: 1rem;
+            border-bottom: 1px solid #333;
+            background-color: #252526;
+        }
+        
+        .source-control-content {
+            padding: 1rem;
+        }
+        
+        .git-file-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+        }
+        
+        .git-file-item:hover {
+            background-color: #2a2a2a;
+        }
+        
+        .git-file-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .git-status-modified {
+            background-color: #fd7e14;
+            color: white;
+        }
+        
+        .git-status-added {
+            background-color: #198754;
+            color: white;
+        }
+        
+        .git-status-untracked {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .git-status-staged {
+            background-color: #20c997;
+            color: white;
+        }
+        
+        .commit-section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #333;
+        }
+        
+        .commit-message {
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .git-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1039;
+            display: none;
+        }
+        
+        .sidebar-overlay.show {
+            display: block;
+        }
+        
         /* Mobile-specific styles */
         @media (max-width: 768px) {
             .btn-group .btn {
@@ -118,11 +253,16 @@
                 flex: 1;
                 min-width: 0;
             }
+            
+            .source-control-sidebar {
+                width: 100%;
+                right: -100%;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container mt-3 mt-md-4">
+    <div class="container mt-3 mt-md-4 main-content">
         <div class="row justify-content-center">
             <div class="col-12 col-lg-10">
                 <div class="card">
@@ -135,6 +275,11 @@
                             <a href="{{ url_for('tmux_manager') }}" class="btn btn-sm btn-info">
                                 <i class="bi bi-terminal"></i> Tmux Sessions
                             </a>
+                            {% if git_enabled %}
+                                <button id="toggleSourceControl" class="btn btn-sm btn-outline-warning source-control-toggle">
+                                    <i class="bi bi-git"></i> Source Control
+                                </button>
+                            {% endif %}
                             <button id="toggleHidden" class="btn btn-sm btn-outline-secondary">
                                 <i class="bi bi-eye-slash"></i> <span id="toggleText">Show Hidden</span>
                             </button>
@@ -219,6 +364,104 @@
             </div>
         </div>
     </div>
+
+    <!-- Source Control Sidebar -->
+    {% if git_enabled %}
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+        <div class="source-control-sidebar" id="sourceControlSidebar">
+            <div class="source-control-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-git"></i> Source Control
+                    </h5>
+                    <button class="btn btn-sm btn-outline-secondary" id="closeSidebar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted" id="branchInfo">
+                        {% if git_configured %}
+                            <i class="bi bi-git"></i> {{ current_branch or 'main' }}
+                        {% else %}
+                            <i class="bi bi-exclamation-triangle text-warning"></i> Git not configured
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+            
+            <div class="source-control-content">
+                {% if git_configured %}
+                    <!-- Git Actions -->
+                    <div class="mb-3">
+                        <div class="git-actions">
+                            <button class="btn btn-sm btn-outline-info" id="gitPull">
+                                <i class="bi bi-arrow-down"></i> Pull
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" id="gitPush">
+                                <i class="bi bi-arrow-up"></i> Push
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" id="refreshGit">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="git-actions mt-2">
+                            <button class="btn btn-sm btn-outline-warning" id="discardAll">
+                                <i class="bi bi-x-octagon"></i> Discard All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Changes Section -->
+                    <div class="mb-3">
+                        <h6>Changes</h6>
+                        <div id="gitChanges">
+                            <div class="text-center p-3">
+                                <div class="spinner-border spinner-border-sm me-2"></div>
+                                Loading changes...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Commit Section -->
+                    <div class="commit-section">
+                        <h6>Commit</h6>
+                        <textarea class="form-control commit-message" id="commitMessage" 
+                                  placeholder="Enter commit message..." rows="3"></textarea>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-primary" id="commitChanges" disabled>
+                                <i class="bi bi-check-circle"></i> Commit
+                            </button>
+                            <small class="text-muted ms-2" id="stagedFilesCount">0 files staged</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Commits -->
+                    <div class="mt-3">
+                        <h6>Recent Commits</h6>
+                        <div id="recentCommits">
+                            <div class="text-center p-3">
+                                <div class="spinner-border spinner-border-sm me-2"></div>
+                                Loading commits...
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="text-center p-4">
+                        <i class="bi bi-git text-warning" style="font-size: 3rem;"></i>
+                        <h6 class="mt-2">Git not configured</h6>
+                        <p class="text-muted small">
+                            Initialize a Git repository in the scripts directory to use source control features.
+                        </p>
+                        <div class="mt-3">
+                            <code class="text-info">cd {{ SCRIPT_DIR or '/data/scripts' }}</code><br>
+                            <code class="text-info">git init</code><br>
+                            <code class="text-info">git remote add origin &lt;your-repo-url&gt;</code>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -451,6 +694,380 @@
                     });
             });
         });
+        
+        // Source Control Sidebar functionality
+        {% if git_enabled %}
+        let sourceControlOpen = false;
+        let gitData = null;
+        
+        function toggleSourceControl() {
+            sourceControlOpen = !sourceControlOpen;
+            const sidebar = document.getElementById('sourceControlSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const toggleBtn = document.getElementById('toggleSourceControl');
+            
+            if (sourceControlOpen) {
+                sidebar.classList.add('show');
+                overlay.classList.add('show');
+                toggleBtn.classList.add('btn-warning');
+                toggleBtn.classList.remove('btn-outline-warning');
+                loadGitStatus();
+            } else {
+                sidebar.classList.remove('show');
+                overlay.classList.remove('show');
+                toggleBtn.classList.remove('btn-warning');
+                toggleBtn.classList.add('btn-outline-warning');
+            }
+        }
+        
+        function loadGitStatus() {
+            fetch('/git/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Git error:', data.error);
+                        return;
+                    }
+                    
+                    gitData = data;
+                    updateGitUI();
+                })
+                .catch(error => {
+                    console.error('Error loading git status:', error);
+                });
+        }
+        
+        function updateGitUI() {
+            if (!gitData) return;
+            
+            // Update branch info
+            const branchInfo = document.getElementById('branchInfo');
+            branchInfo.innerHTML = `<i class="bi bi-git"></i> ${gitData.branch || 'main'}`;
+            
+            // Update changes
+            const changesDiv = document.getElementById('gitChanges');
+            if (gitData.status.length === 0) {
+                changesDiv.innerHTML = '<div class="text-center p-3 text-muted">No changes</div>';
+            } else {
+                let html = '';
+                gitData.status.forEach(file => {
+                    const statusIcon = getStatusIcon(file.status);
+                    const statusColor = getStatusColor(file.status);
+                    html += `
+                        <div class="git-file-item" data-filename="${file.filename}">
+                            <div class="git-file-status ${statusColor}">
+                                ${statusIcon}
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="file-name">${file.filename}</div>
+                                <small class="text-muted">${getStatusText(file.status)}</small>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                ${file.staged ? 
+                                    `<button class="btn btn-outline-warning unstage-file" data-filename="${file.filename}" title="Unstage">
+                                        <i class="bi bi-dash-circle"></i>
+                                    </button>` :
+                                    `<button class="btn btn-outline-success stage-file" data-filename="${file.filename}" title="Stage">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </button>`
+                                }
+                                ${!file.untracked ? 
+                                    `<button class="btn btn-outline-danger discard-file" data-filename="${file.filename}" title="Discard Changes">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>` : ''
+                                }
+                            </div>
+                        </div>
+                    `;
+                });
+                changesDiv.innerHTML = html;
+                
+                // Add event listeners for stage/unstage buttons
+                document.querySelectorAll('.stage-file').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        stageFile(btn.dataset.filename);
+                    });
+                });
+                
+                document.querySelectorAll('.unstage-file').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        unstageFile(btn.dataset.filename);
+                    });
+                });
+                
+                document.querySelectorAll('.discard-file').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        discardFile(btn.dataset.filename);
+                    });
+                });
+            }
+            
+            // Update staged files count
+            const stagedCount = gitData.status.filter(f => f.staged).length;
+            document.getElementById('stagedFilesCount').textContent = `${stagedCount} file${stagedCount !== 1 ? 's' : ''} staged`;
+            document.getElementById('commitChanges').disabled = stagedCount === 0;
+            
+            // Update recent commits
+            const commitsDiv = document.getElementById('recentCommits');
+            if (gitData.commits.length === 0) {
+                commitsDiv.innerHTML = '<div class="text-center p-3 text-muted">No commits</div>';
+            } else {
+                let html = '';
+                gitData.commits.forEach(commit => {
+                    html += `
+                        <div class="commit-item p-2 border-bottom">
+                            <div class="d-flex align-items-start">
+                                <code class="me-2 text-info">${commit.hash}</code>
+                                <small class="text-muted">${commit.message}</small>
+                            </div>
+                        </div>
+                    `;
+                });
+                commitsDiv.innerHTML = html;
+            }
+        }
+        
+        function getStatusIcon(status) {
+            switch (status.trim()) {
+                case 'M ': return 'M'; // Modified and staged
+                case ' M': return 'M'; // Modified
+                case 'A ': return 'A'; // Added (staged)
+                case '??': return '?'; // Untracked
+                case 'AM': return 'A'; // Added and modified
+                case 'MM': return 'M'; // Modified in index and working tree
+                default: return status[0] || '?';
+            }
+        }
+        
+        function getStatusColor(status) {
+            switch (status.trim()) {
+                case 'M ': return 'git-status-staged'; // Modified and staged
+                case ' M': return 'git-status-modified'; // Modified
+                case 'A ': return 'git-status-staged'; // Added (staged)
+                case '??': return 'git-status-untracked'; // Untracked
+                case 'AM': return 'git-status-staged'; // Added and modified
+                case 'MM': return 'git-status-modified'; // Modified in both
+                default: return status[0] !== ' ' && status[0] !== '?' ? 'git-status-staged' : 'git-status-modified';
+            }
+        }
+        
+        function getStatusText(status) {
+            switch (status.trim()) {
+                case 'M ': return 'Modified (staged)';
+                case ' M': return 'Modified';
+                case 'A ': return 'Added (staged)';
+                case '??': return 'Untracked';
+                case 'AM': return 'Added & Modified';
+                case 'MM': return 'Modified (staged & working)';
+                default: return status[0] !== ' ' && status[0] !== '?' ? 'Staged' : 'Modified';
+            }
+        }
+        
+        function stageFile(filename) {
+            fetch(`/git/stage/${filename}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'danger');
+                    } else {
+                        showToast(data.message, 'success');
+                        loadGitStatus();
+                    }
+                })
+                .catch(error => {
+                    showToast('Error staging file', 'danger');
+                });
+        }
+        
+        function unstageFile(filename) {
+            fetch(`/git/unstage/${filename}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'danger');
+                    } else {
+                        showToast(data.message, 'success');
+                        loadGitStatus();
+                    }
+                })
+                .catch(error => {
+                    showToast('Error unstaging file', 'danger');
+                });
+        }
+        
+        function discardFile(filename) {
+            if (!confirm(`Are you sure you want to discard all changes to "${filename}"? This cannot be undone.`)) {
+                return;
+            }
+            
+            fetch(`/git/discard/${encodeURIComponent(filename)}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'danger');
+                    } else {
+                        showToast(data.message, 'success');
+                        loadGitStatus();
+                    }
+                })
+                .catch(error => {
+                    showToast('Error discarding file changes', 'danger');
+                });
+        }
+        
+        function discardAllChanges() {
+            if (!confirm('Are you sure you want to discard ALL changes? This will reset all files to the last commit and cannot be undone.')) {
+                return;
+            }
+            
+            const btn = document.getElementById('discardAll');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Discarding...';
+            btn.disabled = true;
+            
+            fetch('/git/discard-all', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'danger');
+                    } else {
+                        showToast(data.message, 'success');
+                        loadGitStatus();
+                    }
+                })
+                .catch(error => {
+                    showToast('Error discarding all changes', 'danger');
+                })
+                .finally(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                });
+        }
+        
+        function commitChanges() {
+            const message = document.getElementById('commitMessage').value.trim();
+            if (!message) {
+                showToast('Commit message is required', 'warning');
+                return;
+            }
+            
+            const btn = document.getElementById('commitChanges');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Committing...';
+            btn.disabled = true;
+            
+            fetch('/git/commit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error, 'danger');
+                } else {
+                    showToast(data.message, 'success');
+                    document.getElementById('commitMessage').value = '';
+                    loadGitStatus();
+                }
+            })
+            .catch(error => {
+                showToast('Error committing changes', 'danger');
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        }
+        
+        function gitPull() {
+            const btn = document.getElementById('gitPull');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pulling...';
+            btn.disabled = true;
+            
+            fetch('/git/pull', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'danger');
+                    } else {
+                        showToast(data.message, 'success');
+                        loadGitStatus();
+                    }
+                })
+                .catch(error => {
+                    showToast('Error pulling changes', 'danger');
+                })
+                .finally(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                });
+        }
+        
+        function gitPush() {
+            const btn = document.getElementById('gitPush');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Pushing...';
+            btn.disabled = true;
+            
+            fetch('/git/push', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'danger');
+                    } else {
+                        showToast(data.message, 'success');
+                        loadGitStatus();
+                    }
+                })
+                .catch(error => {
+                    showToast('Error pushing changes', 'danger');
+                })
+                .finally(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                });
+        }
+        
+        // Event listeners for source control
+        document.getElementById('toggleSourceControl').addEventListener('click', toggleSourceControl);
+        document.getElementById('closeSidebar').addEventListener('click', toggleSourceControl);
+        document.getElementById('sidebarOverlay').addEventListener('click', toggleSourceControl);
+        document.getElementById('commitChanges').addEventListener('click', commitChanges);
+        document.getElementById('gitPull').addEventListener('click', gitPull);
+        document.getElementById('gitPush').addEventListener('click', gitPush);
+        document.getElementById('refreshGit').addEventListener('click', loadGitStatus);
+        document.getElementById('discardAll').addEventListener('click', discardAllChanges);
+        
+        // Enable commit button when message is entered
+        document.getElementById('commitMessage').addEventListener('input', function() {
+            const hasMessage = this.value.trim().length > 0;
+            const stagedCount = gitData ? gitData.status.filter(f => f.staged).length : 0;
+            document.getElementById('commitChanges').disabled = !hasMessage || stagedCount === 0;
+        });
+        
+        // Initialize source control on page load for desktop
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.innerWidth >= 992) {
+                sourceControlOpen = true;
+                loadGitStatus();
+            }
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (window.innerWidth >= 992 && !sourceControlOpen) {
+                sourceControlOpen = true;
+                loadGitStatus();
+            }
+        });
+        {% endif %}
     </script>
 </body>
 </html>
